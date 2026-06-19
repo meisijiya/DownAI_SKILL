@@ -206,13 +206,71 @@ def check_long_sentence(text: str) -> List[Dict[str, Any]]:
                 "match": sent,
                 "offset": 0,
             })
-        elif n > 25:
+        elif n > 30:
             issues.append({
                 "rule_id": rule[0],
                 "rule_desc": rule[1] + f"（{n} 字，建议检查）",
                 "severity": "low",
                 "suggestion": rule[4],
                 "match": sent,
+                "offset": 0,
+            })
+    return issues
+
+
+def check_over_fragmentation(text: str) -> List[Dict[str, Any]]:
+    """检测过度拆句：连续 3+ 句过短（≤18 字），或整段句长过于单调。"""
+    issues = []
+    paragraphs = split_paragraphs(text)
+
+    for para in paragraphs:
+        para_sents = []
+        buf = ""
+        for ch in para:
+            buf += ch
+            if ch in "。！？；\n":
+                if buf.strip():
+                    para_sents.append(buf.strip())
+                buf = ""
+        if buf.strip():
+            para_sents.append(buf.strip())
+
+        if len(para_sents) < 3:
+            continue
+
+        # 检测 A：连续 3+ 句 ≤ 12 字（极端电报体）
+        short_run_extreme = 0
+        # 检测 B：连续 4+ 句 ≤ 18 字（句子过密过短）
+        short_run_mild = 0
+        for s in para_sents:
+            clean = re.sub(r"[，。！？；：、\s]", "", s)
+            n = len(clean)
+            if 0 < n <= 12:
+                short_run_extreme += 1
+                short_run_mild += 1
+            elif n <= 18:
+                short_run_extreme = 0
+                short_run_mild += 1
+            else:
+                short_run_extreme = 0
+                short_run_mild = 0
+
+        if short_run_extreme >= 3:
+            issues.append({
+                "rule_id": "over_fragmentation",
+                "rule_desc": f"过度拆句（电报体，本段连续 {short_run_extreme} 句 ≤12 字）",
+                "severity": "high",
+                "suggestion": "将逻辑紧密的短句合并为自然长句（20-30 字）。人类学术写作的句长本身就有变化。",
+                "match": "(见原段落)",
+                "offset": 0,
+            })
+        elif short_run_mild >= 3:
+            issues.append({
+                "rule_id": "over_fragmentation",
+                "rule_desc": f"句长单调（本段连续 {short_run_mild} 句 ≤18 字，缺乏节奏变化）",
+                "severity": "medium",
+                "suggestion": "考虑把某些 15 字左右的句子扩展为 25-30 字自然长句，或保留一两句 8-12 字短句做节奏变化。",
+                "match": "(见原段落)",
                 "offset": 0,
             })
     return issues
@@ -290,6 +348,7 @@ CHECKERS = [
     check_parallel,
     check_ai_cliche,
     check_colloquial,
+    check_over_fragmentation,
 ]
 
 

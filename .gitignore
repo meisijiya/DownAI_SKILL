@@ -15,3 +15,12 @@ Thumbs.db
 
 # 忽略系统文件
 desktop.ini
+
+# 忽略本地工作区（skill-creator 产物）
+*_workspace/
+*-workspace/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
